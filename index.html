@@ -1,0 +1,274 @@
+<html>
+
+<head>
+</head>
+
+<body>
+  <div>
+    <canvas id="can" width="400" height="400" style="border: 1px solid black">ah</canvas>
+  </div>
+  <div>
+    <div>
+      <button onclick="toggle(this)">Start</button>
+      <button onclick="init()">Reset</button>
+    </div>
+    <div>
+      <!-- <input type="range" min="20" max="500" value="100" id="range" step="1"><label>Speed</label> -->
+    </div>
+    <div>
+      <input type="checkbox" id="random" checked><label>Random</label>
+    </div>
+    <div>
+      <input type="range" min="20" max="500" value="100" id="range" step="10"><label>Resolution</label>
+    </div>
+  </div>
+</body>
+
+<script>
+
+  var can = document.getElementById("can");
+  var c = can.getContext("2d");
+  var slider = document.getElementById("range");
+  var randomCB = document.getElementById("random");
+  var isRandom = true;
+  var started = false;
+  var id;
+  var speed = 100;
+
+  var tick = 0;
+  const WIDTH = can.width;
+  const HEIGHT = can.height;
+  const CELL_RAD = 10;
+  let image;
+  let data;
+  let cells = [];
+
+  can.addEventListener('click', function (event) {
+    console.log((event.pageX - can.offsetLeft) + ", " + (event.pageY - can.offsetLeft))
+    var curCell = getCellAtPixel(event.pageX - can.offsetLeft, event.pageY - can.offsetLeft);
+    curCell.cellState = !curCell.cellState;
+    render();
+  }, false);
+
+  random.onchange = function () {
+    isRandom = randomCB.checked;
+    init();
+    //console.log(isRandom);
+  }
+
+  slider.oninput = function () {
+    speed = this.value;
+    if (started) {
+      if (id != null) {
+        clearInterval(id)
+      }
+      id = setInterval(mainLoop
+        , speed);
+    } else {
+      clearInterval(id)
+    }
+  }
+
+  function Cell(x, y) {
+    this.x = x;
+    this.y = y;
+    this.cellState = false;
+    this.neiCount = 0;
+
+
+    this.render = function () {
+      var y1 = y + CELL_RAD;
+      var x1 = x + CELL_RAD;
+      for (var i = y; i < y1; i++) {
+        for (var j = x; j < x1; j++) {
+          setPixelAtPos(j, i, this.cellState);
+        }
+      }
+      if (this.cellState == false) {
+        for (var i = y; i < y1; i++) {
+          setPixelAtPosCol(this.x, i, 100, 100, 100, 100);
+        }
+        for (var i = x; i < x1; i++) {
+          setPixelAtPosCol(i, this.y, 100, 100, 100, 100);
+        }
+      }
+    };
+    this.checkNeighbors = function () {
+      this.neiCount = 0;
+      var nextCells = [];
+      var neiCells = [];
+
+      nextCells.push(getCellAtPixel(this.x, this.y - CELL_RAD));
+      nextCells.push(getCellAtPixel(this.x, this.y + CELL_RAD));
+      nextCells.push(getCellAtPixel(this.x - CELL_RAD, this.y));
+      nextCells.push(getCellAtPixel(this.x + CELL_RAD, this.y));
+
+      nextCells.push(getCellAtPixel(this.x - CELL_RAD, this.y - CELL_RAD));
+      nextCells.push(getCellAtPixel(this.x + CELL_RAD, this.y - CELL_RAD));
+      nextCells.push(getCellAtPixel(this.x + CELL_RAD, this.y + CELL_RAD));
+      nextCells.push(getCellAtPixel(this.x - CELL_RAD, this.y + CELL_RAD));
+
+      for (let i = 0; i < nextCells.length; i++) {
+        if (nextCells[i] != null) {
+          neiCells.push(nextCells[i]);
+        }
+      }
+
+      for (let i = 0; i < neiCells.length; i++) {
+        if (neiCells[i].cellState) this.neiCount++;
+      }
+
+    };
+    this.checkState = function () {
+      if (this.cellState == false) {
+        if (this.neiCount == 3) {
+          this.cellState = true;
+        }
+      } else {
+        if (this.neiCount < 2) {
+          this.cellState = false;
+        } else if (this.neiCount > 3) {
+          this.cellState = false;
+        } else {
+          this.cellState = true;
+        }
+      }
+    };
+  }
+
+  function toggle(e) {
+    started = !started;
+    if (started) {
+      e.textContent = "Stop";
+      id = setInterval(mainLoop
+        , speed);
+    } else {
+      e.textContent = "Start";
+      clearInterval(id)
+    }
+  }
+
+
+  function init() {
+
+    // populate cells
+    cells = [];
+    for (var y = 0; y < HEIGHT; y += CELL_RAD) {
+      for (var x = 0; x < WIDTH; x += CELL_RAD) {
+        newCell = new Cell(x, y);
+        if (isRandom) {
+          if (Math.random() < 0.5) {
+            newCell.cellState = true;
+          }
+        }
+        cells.push(newCell);
+      }
+    }
+    render();
+    for (var i = 0; i < cells.length; i++) {
+      cells[i].render();
+    }
+  }
+
+  function mainLoop() {
+    render();
+
+
+    for (var i = 0; i < cells.length; i++) {
+      cells[i].checkNeighbors();
+    }
+    for (var i = 0; i < cells.length; i++) {
+      cells[i].checkState();
+    }
+
+
+    //c.putImageData(image, 0, 0);
+  }
+
+  function getPixelAtPos(x, y) {
+
+    if (data[y * (WIDTH * 4) + x * 4 + 0] != 0) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  function setPixelAtPos(x, y, v) {
+    if (!v) {
+      data[y * (WIDTH * 4) + x * 4 + 0] = 255;
+      data[y * (WIDTH * 4) + x * 4 + 1] = 255;
+      data[y * (WIDTH * 4) + x * 4 + 2] = 255;
+    } else {
+      data[y * (WIDTH * 4) + x * 4 + 0] = 0;
+      data[y * (WIDTH * 4) + x * 4 + 1] = 0;
+      data[y * (WIDTH * 4) + x * 4 + 2] = 0;
+    }
+    data[y * (WIDTH * 4) + x * 4 + 3] = 255;
+  }
+
+  function setPixelAtPosCol(x, y, r, g, b, a) {
+
+    data[y * (WIDTH * 4) + x * 4 + 0] = r;
+    data[y * (WIDTH * 4) + x * 4 + 1] = g;
+    data[y * (WIDTH * 4) + x * 4 + 2] = b;
+
+    data[y * (WIDTH * 4) + x * 4 + 3] = a;
+  }
+
+  function render() {
+    tick++;
+
+    // clear screen
+    data = image.data;
+    for (var y = 0; y < HEIGHT; y++) {
+      for (var x = 0; x < WIDTH; x++) {
+        setPixelAtPos(x, y, false)
+      }
+    }
+
+    // render all cells
+    for (var i = 0; i < cells.length; i++) {
+      cells[i].render();
+    }
+    c.putImageData(image, 0, 0);
+  }
+
+  function checkNeighbors(cell) {
+    var count = 0;
+    if (!(cell.x - CELL_RAD < 0 || cell.x + CELL_RAD > WIDTH || cell.y - CELL_RAD < 0 || cell.y + CELL_RAD > HEIGHT)) {
+      if (getPixelAtPos(cell.x - CELL_RAD, cell.y + CELL_RAD)) {
+        count++;
+      } else if (getPixelAtPos(cell.x + CELL_RAD, cell.y + CELL_RAD)) {
+        count++;
+      } else if (getPixelAtPos(cell.x + CELL_RAD, cell.y + CELL_RAD)) {
+        count++;
+      } else if (getPixelAtPos(cell.x + CELL_RAD, cell.y + CELL_RAD)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+
+  function getCellAtPixel(x, y) {
+    var selectedCell;
+    for (var i = 0; i < cells.length; i++) {
+      if (x >= cells[i].x && x <= (cells[i].x + CELL_RAD) && y >= cells[i].y && y <= (cells[i].y + CELL_RAD)) {
+        selectedCell = cells[i];
+      }
+    }
+    return selectedCell;
+  }
+
+  image = c.getImageData(0, 0, WIDTH, HEIGHT);
+  init();
+  mainLoop();
+  if (started) {
+    id = setInterval(mainLoop, speed);
+  }
+
+
+</script>
+
+</html>
